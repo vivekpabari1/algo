@@ -90,9 +90,13 @@ class waveAlgo():
       last = True
     self._setup_tradebook()
 
-
     # enctoken = input("Enter Token: ")
     self.kite = KiteApp(enctoken=self.config['enctoken'])
+    self.ce_oi = 0
+    self.pe_oi = 0
+    self.difference = 0
+    self.is_jackpot = False
+    self.oi_signal = ''
     threading.Thread(target=self.refresh).start()
     threading.Thread(target=self.oi_data).start()
     # threading.Thread(target=self.temp_update_ltp).start()
@@ -113,26 +117,35 @@ class waveAlgo():
   def _setup_oi_data(self):
     self.session = requests.Session()
     self.headers = {
-      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, '
-                    'like Gecko) Chrome/80.0.3987.149 Safari/537.36',
-      'accept-language': 'en,gu;q=0.9,hi;q=0.8',
-      'accept-encoding': 'gzip, deflate, br'}
-    response = self.session.get("https://www.nseindia.com/option-chain", headers=self.headers, timeout=50)
+      'user-agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, '
+      'like Gecko) Chrome/80.0.3987.149 Safari/537.36',
+      'accept-language':
+      'en,gu;q=0.9,hi;q=0.8',
+      'accept-encoding':
+      'gzip, deflate, br'
+    }
+    response = self.session.get("https://www.nseindia.com/option-chain",
+                                headers=self.headers,
+                                timeout=50)
     cookies = response.cookies
-    response = self.session.get("https://www.nseindia.com/api/option-chain-indices?symbol=BANKNIFTY",
-                                headers=self.headers, timeout=5, cookies=cookies)
+    response = self.session.get(
+      "https://www.nseindia.com/api/option-chain-indices?symbol=BANKNIFTY",
+      headers=self.headers,
+      timeout=5,
+      cookies=cookies)
     self.bndf = pandas.read_json(response.text)
-    self.bnce_values = pandas.DataFrame(data['CE'] for data in self.bndf['records']['data'] if
-                                        'CE' in data and data['expiryDate'] == self.bndf['records']['expiryDates'][
-                                          0])
-    self.bnpe_values = pandas.DataFrame(data['PE'] for data in self.bndf['records']['data'] if
-                                        'PE' in data and data['expiryDate'] == self.bndf['records']['expiryDates'][
-                                          0])
+    self.bnce_values = pandas.DataFrame(
+      data['CE'] for data in self.bndf['records']['data'] if 'CE' in data
+      and data['expiryDate'] == self.bndf['records']['expiryDates'][0])
+    self.bnpe_values = pandas.DataFrame(
+      data['PE'] for data in self.bndf['records']['data'] if 'PE' in data
+      and data['expiryDate'] == self.bndf['records']['expiryDates'][0])
     self.ce_oi = self.bnce_values['changeinOpenInterest'].sum()
     self.pe_oi = self.bnpe_values['changeinOpenInterest'].sum()
     self.difference = abs(self.ce_oi - self.pe_oi) * 25
     self.is_jackpot = bool(self.difference > 10000000)
-    self.oi_signal = 'CE' if self.ce_oi > self.pe_oi else 'PE'
+    self.oi_signal = 'PE' if self.ce_oi > self.pe_oi else 'CE'
 
   def _setup_tradebook(self):
     self.directory = f"{date.today().strftime('%Y-%m-%d')}"
@@ -319,8 +332,10 @@ class waveAlgo():
       #   is_short and abs(buy_sell_signal['wtdiff'].tail(1).values[0]) > 2
       # ) and buy_sell_signal['trend'].tail(1).values[0] == "DOWN"
 
-      buy_sell_signal['ready_ce'] = buy_sell_signal['trend'].tail(1).values[0] == "UP"
-      buy_sell_signal['ready_pe'] = buy_sell_signal['trend'].tail(1).values[0] == "DOWN"
+      buy_sell_signal['ready_ce'] = buy_sell_signal['trend'].tail(
+        1).values[0] == "UP"
+      buy_sell_signal['ready_pe'] = buy_sell_signal['trend'].tail(
+        1).values[0] == "DOWN"
 
       _logger.info(
         f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
@@ -445,7 +460,7 @@ class waveAlgo():
           'remark': "",
           "unsubscribe": True
         }
-        amount = 1200 if side.lower() == self.oi_signal.lower() else 600
+        amount = 1200 if self.oi_signal and side.lower() == self.oi_signal.lower() else 600
         target = amount * no_of_lots
         percentage = min(((amount * no_of_lots) / vals['investment']), 0.25)
         stoploss = ltp - (ltp * percentage)
@@ -534,11 +549,12 @@ class waveAlgo():
                                                    self.tradebook.loc[
                                                        index, 'investment']
         change_target_sl = 0.10  # (5 if row.symbol == "BANKNIFTY" else 2)
-        pro_loss = round((ltp * qty) - (self.tradebook.loc[index, 'buy_price'] * qty) - 60, 2)
+        pro_loss = round(
+          (ltp * qty) - (self.tradebook.loc[index, 'buy_price'] * qty) - 60, 2)
         # if pro_loss >= 1000:  # (2000 if row.symbol == "BANKNIFTY" else 1200):
 
         if pro_loss >= self.tradebook.loc[index, 'target']:
-          new_sl = ltp - change_target_sl
+          new_sl = ltp - (ltp * change_target_sl)
           self.tradebook.loc[index, 'target'] += change_target_sl
           self.tradebook.loc[index, 'stoploss'] = new_sl if new_sl > self.tradebook.loc[index, 'stoploss'] else \
               self.tradebook.loc[index, 'stoploss']
@@ -546,7 +562,9 @@ class waveAlgo():
           self._orderUpdate(index, "StopLoss", "Stop Loss Hit", ltp,
                             row.symbol)
         if self.tradebook.loc[index, 'qty'] > 0:
-          self.tradebook.loc[index,'profit_loss'] = pro_loss  # (25 if row.symbol == "BANKNIFTY" else 50)
+          self.tradebook.loc[
+            index,
+            'profit_loss'] = pro_loss  # (25 if row.symbol == "BANKNIFTY" else 50)
         else:
           self.tradebook.loc[index, 'profit_loss'] = (
             self.tradebook.loc[index, 'exit_price'] *
@@ -562,9 +580,9 @@ class waveAlgo():
         self.tradebook.loc[
           self.tradebook.query("orderId == 'NFO:Profit'").index,
           "remaining_balance"] = self.balance
-        if self.balance < 0 :
-          self.tradebook.drop(df.tail(1).index,inplace=True) # drop last n rows
-
+        if self.balance < 0:
+          self.tradebook.drop(df.tail(1).index,
+                              inplace=True)  # drop last n rows
 
     # tradebook.to_csv(self.tradebook_path, index=False)
 
