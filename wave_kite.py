@@ -460,9 +460,11 @@ class waveAlgo():
           'remark': "",
           "unsubscribe": True
         }
-        amount = 1200 if self.oi_signal and side.lower() == self.oi_signal.lower() else 600
-        target = amount * no_of_lots
-        percentage = min(((amount * no_of_lots) / vals['investment']), 0.25)
+        amount = 1200 if self.oi_signal and side.lower(
+        ) == self.oi_signal.lower() else 600
+        target = min((amount * no_of_lots), 4000)
+        percentage = min((min(
+          (amount * no_of_lots), 4000) / vals['investment']), 0.25)
         stoploss = ltp - (ltp * percentage)
         vals['target'] = target
         vals['stoploss'] = stoploss
@@ -548,7 +550,7 @@ class waveAlgo():
         self.tradebook.loc[index, 'profit_loss'] = (ltp * self.tradebook.loc[index, 'qty']) - \
                                                    self.tradebook.loc[
                                                        index, 'investment']
-        change_target_sl = 0.10  # (5 if row.symbol == "BANKNIFTY" else 2)
+        change_target_sl = 0.05  # (5 if row.symbol == "BANKNIFTY" else 2)
         pro_loss = round(
           (ltp * qty) - (self.tradebook.loc[index, 'buy_price'] * qty) - 60, 2)
         # if pro_loss >= 1000:  # (2000 if row.symbol == "BANKNIFTY" else 1200):
@@ -581,7 +583,7 @@ class waveAlgo():
           self.tradebook.query("orderId == 'NFO:Profit'").index,
           "remaining_balance"] = self.balance
         if self.balance < 0:
-          self.tradebook.drop(df.tail(1).index,
+          self.tradebook.drop(self.tradebook.tail(1).index,
                               inplace=True)  # drop last n rows
 
     # tradebook.to_csv(self.tradebook_path, index=False)
