@@ -248,21 +248,14 @@ class waveAlgo():
     nwto = ta.WTO(nohlc)
     ao = ta.AO(nohlc)
     psar = ta.PSAR(nohlc)
-    nohlc['sr'] = ta.STOCH(nohlc)
-    nohlc['sr'] = ta.STOCHD(nohlc)
     nohlc['ao'] = ao
-    nohlc['psar'] = psar['psar']
     nohlc['wt1'] = nwto['WT1.']
     nohlc['wt2'] = nwto['WT2.']
     nohlc['wtdiff'] = nwto['WT1.'] - nwto['WT2.']
     nohlc['trend'] = np.where(
       nohlc['wtdiff'] < nohlc['wtdiff'].shift(), 'DOWN',
       np.where(nohlc['wtdiff'] > nohlc['wtdiff'].shift(), 'UP', 'FLAT'))
-    nohlc['ce_sl'] = nohlc['low'].round()[-2:-1].values[0]
-    nohlc['pe_sl'] = nohlc['high'].round()[-2:-1].values[0]
-    nohlc['prev_candle_diff'] = (nohlc['close'] -
-                                 nohlc['open']).round()[-2:-1].values[0]
-    nohlc['prev_close'] = nohlc['close'].round()[-2:-1].values[0]
+    nohlc['cci'] = ta.CCI(nohlc)
     return nohlc.round(2)
 
   def _get_ema_values(self, symbol):
@@ -271,77 +264,19 @@ class waveAlgo():
       # self.tradebook = self.tradebook[self.tradebook['orderId'].map(lambda x: str(x).startswith('NFO'))]
       symbol = INDEX_MAP[symbol]
       buy_sell_signal = self._get_wto(symbol)
-      last_wto_val = pd.DataFrame({
-        "a": buy_sell_signal['ao']
-      }).tail(2).round(2)
-      is_increasing = last_wto_val.apply(
-        lambda x: x.is_monotonic_increasing).bool()
-      is_decreasing = last_wto_val.apply(
-        lambda x: x.is_monotonic_decreasing).bool()
+      last_wto_val = pd.DataFrame({"a": buy_sell_signal['ao']}).tail(2).round(2)
+      is_increasing = last_wto_val.apply(lambda x: x.is_monotonic_increasing).bool()
+      is_decreasing = last_wto_val.apply(lambda x: x.is_monotonic_decreasing).bool()
       ltp = self.kite.ltp(symbol).get(symbol, {}).get('last_price')
       buy_sell_signal['ltp'] = ltp
 
-      wto_long_index = buy_sell_signal.loc[np.where(
-        (buy_sell_signal['wt1'] > buy_sell_signal['wt2']))].tail(1)
-      wto_short_index = buy_sell_signal.loc[np.where(
-        (buy_sell_signal['wt1'] < buy_sell_signal['wt2']))].tail(1)
+      buy_sell_signal['ready_ce'] = buy_sell_signal['trend'].tail(1).values[0] == "UP"
+      buy_sell_signal['ready_pe'] = buy_sell_signal['trend'].tail(1).values[0] == "DOWN"
 
-      long_index = buy_sell_signal.loc[np.where(
-        (buy_sell_signal['psar'] < ltp))].tail(1)
-      short_index = buy_sell_signal.loc[np.where(
-        (buy_sell_signal['psar'] > ltp))].tail(1)
-
-      if not long_index.empty:
-        long_index = long_index.index.values[0]
-      else:
-        long_index = 0
-      if not short_index.empty:
-        short_index = short_index.index.values[0]
-      else:
-        short_index = 0
-
-      if not wto_long_index.empty:
-        wto_long_index = wto_long_index.index.values[0]
-      else:
-        wto_long_index = 0
-      if not wto_short_index.empty:
-        wto_short_index = wto_short_index.index.values[0]
-      else:
-        wto_short_index = 0
-      is_long_wto = (wto_long_index > wto_short_index)
-      is_short_wto = (wto_long_index < wto_short_index)
-      long_counter_list = [
-        is_increasing, (long_index > short_index), is_long_wto
-      ]
-      short_counter_list = [
-        is_decreasing, (long_index < short_index), is_short_wto
-      ]
-      long_counter_list = Counter(long_counter_list)
-      short_counter_list = Counter(short_counter_list)
-      is_long = list(
-        [item for item in long_counter_list if long_counter_list[item] > 1])
-      is_short = list(
-        [item for item in short_counter_list if short_counter_list[item] > 1])
-      is_long = all(is_long)
-      is_short = all(is_short)
-
-      # buy_sell_signal['ready_ce'] = (
-      #   is_long and abs(buy_sell_signal['wtdiff'].tail(1).values[0]) > 2
-      # ) and buy_sell_signal['trend'].tail(1).values[0] == "UP"
-      # buy_sell_signal['ready_pe'] = (
-      #   is_short and abs(buy_sell_signal['wtdiff'].tail(1).values[0]) > 2
-      # ) and buy_sell_signal['trend'].tail(1).values[0] == "DOWN"
-
-      buy_sell_signal['ready_ce'] = buy_sell_signal['trend'].tail(
-        1).values[0] == "UP"
-      buy_sell_signal['ready_pe'] = buy_sell_signal['trend'].tail(
-        1).values[0] == "DOWN"
-
-      _logger.info(
-        f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
+      _logger.info(f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
       _logger.info("============================")
-      t = self.tradebook.query(
-        f"symbol == '{old_symbol}' and side == 'PE' and unsubscribe != False")
+      t = self.tradebook.query(f"symbol == '{old_symbol}' and side == 'PE' and unsubscribe != False")
+
       if not t.empty:
         for index, row in t.iterrows():
           if buy_sell_signal['ready_ce'].tail(1).bool() and is_increasing:
