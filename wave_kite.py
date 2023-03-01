@@ -17,6 +17,7 @@ import json
 
 import logging.handlers
 import pandas
+import flas_lt import run_with_lt
 
 logging.basicConfig(level=logging.INFO,
                     handlers=[logging.StreamHandler()],
@@ -29,7 +30,7 @@ socket = SocketIO(app,
                   ping_interval=5,
                   cors_allowed_origins="*",
                   async_mode='gevent')
-# run_with_lt(socket, 'vivek-algo')
+run_with_lt(socket, 'vivek-algo')
 INDEX_MAP = {
     "NIFTY": "NSE:NIFTY 50",
     "BANKNIFTY": "NSE:NIFTY BANK",
