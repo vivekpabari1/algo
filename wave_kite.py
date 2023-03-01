@@ -362,7 +362,7 @@ class waveAlgo():
         if not self.algo_status:
             return
         if not (datetime.now(tz=gettz('Asia/Kolkata')).strftime('%H:%M') >
-                '09:29'):
+                '09:15'):
             return
         self._update_ltp()
         for symbol in ["BANKNIFTY"]:
