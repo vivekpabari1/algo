@@ -266,9 +266,6 @@ class waveAlgo():
             # self.tradebook = self.tradebook[self.tradebook['orderId'].map(lambda x: str(x).startswith('NFO'))]
             symbol = INDEX_MAP[symbol]
             buy_sell_signal = self._get_wto(symbol)
-            if not buy_sell_signal['Sideways'].tail(1).isna().bool():
-                print("Avoid Sideways market")
-                return False, False
             last_wto_val = pd.DataFrame({"a": buy_sell_signal['ao']}).tail(2).round(2)
             is_increasing = last_wto_val.apply(lambda x: x.is_monotonic_increasing).bool()
             is_decreasing = last_wto_val.apply(lambda x: x.is_monotonic_decreasing).bool()
@@ -280,6 +277,9 @@ class waveAlgo():
 
             _logger.info(f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
             _logger.info("============================")
+            if not buy_sell_signal['Sideways'].tail(1).isna().bool():
+                print("Avoid Sideways market")
+                return False, False
             t = self.tradebook.query(f"symbol == '{old_symbol}' and side == 'PE' and unsubscribe != False")
 
             if not t.empty:
@@ -365,6 +365,7 @@ class waveAlgo():
                 '09:15'):
             return
         self._update_ltp()
+        # self.tradebook = self._check_immediate_orders(self.tradebook)
         for symbol in ["BANKNIFTY"]:
             is_valid_ema, side = self._get_ema_values(symbol)
             if not is_valid_ema:
@@ -419,7 +420,6 @@ class waveAlgo():
                     self.balance -= vals['investment']
                     self.symbols.append(orderId)
                     self.tradebook = self.tradebook.append([vals], ignore_index=True)
-                    self.tradebook = self._check_immediate_orders(self.tradebook)
                     if self.kite_order:
                         try:
                             _logger.info(
@@ -434,16 +434,16 @@ class waveAlgo():
                     _logger.info(f"Not Enough balance {balance} {orderId} {qty} {ltp}")
 
     def _check_immediate_orders(self, df):
-        for i in range(len(df) - 1):
+        for i in range(1, len(df) - 1):
             current_order = df.iloc[i]['orderId']
-            current_exit_time = df.iloc[i]['exit_time']
+            current_exit_time = pd.to_datetime(df.iloc[i]['exit_time'])
             current_target = df.iloc[i]['target']
 
             # find the next order with the same name
             next_row = df.iloc[i + 1:].loc[df['orderId'] == current_order].head(1)
 
             if len(next_row) > 0:
-                next_entry_time = next_row.iloc[0]['entry_time']
+                next_entry_time = pd.to_datetime(next_row.iloc[0]['entry_time'])
                 time_diff = (next_entry_time - current_exit_time).total_seconds() / 60
 
                 if time_diff <= 1:

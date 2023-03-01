@@ -1,0 +1,3 @@
+orderId,symbol,strikePrice,side,investment,buy_price,qty,stoploss,target,exit_price,ltp,profit_loss,remark,unsubscribe,entry_time,exit_time,remaining_balance,kite_order
+NFO:Profit,,,,,,,,,,,-130.0,,False,23:59:59,,11442.5,False
+NFO:BANKNIFTY2320240500CE,BANKNIFTY,40500.0,CE,18557.5,742.3,25.0,630.9549999999999,927.875,0.0,739.5,-130.0,,True,09:37:42,,0.0,False
