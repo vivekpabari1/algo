@@ -103,17 +103,17 @@ class waveAlgo():
         # threading.Thread(target=self.temp_update_ltp).start()
 
     def oi_data(self):
-        threading.Thread(target=self._place_order).start()
-        # starttime = time.time()
-        # while True:
-        #     try:
-        #         t = threading.Thread(target=self._setup_oi_data)
-        #         t.start()
-        #     except:
-        #         pass
-        #     finally:
-        #         pass
-        #         time.sleep(10 - ((time.time() - starttime) % 10))
+        # threading.Thread(target=self._place_order).start()
+        starttime = time.time()
+        while True:
+            try:
+                t = threading.Thread(target=self._setup_oi_data)
+                t.start()
+            except:
+                pass
+            finally:
+                pass
+                time.sleep(10 - ((time.time() - starttime) % 10))
 
     def _setup_oi_data(self):
         self.session = requests.Session()
@@ -155,7 +155,7 @@ class waveAlgo():
         self.tradebook = pd.DataFrame([],
                                       columns=[
                                           'orderId', 'symbol', 'strikePrice', 'side',
-                                          'investment', 'buy_price', 'qty',
+                                          'investment', 'buy_price', 'qty','trail_sl',
                                           'stoploss', 'target', 'exit_price', 'ltp',
                                           'profit_loss', 'remark', 'unsubscribe',
                                           'entry_time', 'exit_time',
@@ -168,7 +168,7 @@ class waveAlgo():
             os.makedirs(self.path)
         if not os.path.exists(self.tradebook_path):
             self.tradebook.loc[0] = [
-                'NFO:Profit', '', '', '', '', '', '', '', '', '', '', 0, '', 'False',
+                'NFO:Profit', '', '', '', '', '', '',0, '0', '', '', '', 0, '', 'False',
                 '23:59:59', '', self.funds, False
             ]
             self.tradebook = self.tradebook.to_csv(self.tradebook_path, index=False)
@@ -257,7 +257,8 @@ class waveAlgo():
             nohlc['wtdiff'] < nohlc['wtdiff'].shift(), 'DOWN',
             np.where(nohlc['wtdiff'] > nohlc['wtdiff'].shift(), 'UP', 'FLAT'))
         nohlc['atr'] = ta.ATR(nohlc)
-        nohlc.loc[nohlc['atr'] < 85, 'Sideways'] = True
+        nohlc['adx'] = ta.ADX(nohlc)
+        nohlc.loc[nohlc['adx'] < 22, 'Sideways'] = True
         return nohlc.round(2)
 
     def _get_ema_values(self, symbol):
@@ -365,7 +366,7 @@ class waveAlgo():
                 '09:15'):
             return
         self._update_ltp()
-        # self.tradebook = self._check_immediate_orders(self.tradebook)
+        self.tradebook = self._check_immediate_orders(self.tradebook)
         for symbol in ["BANKNIFTY"]:
             is_valid_ema, side = self._get_ema_values(symbol)
             if not is_valid_ema:
@@ -436,20 +437,18 @@ class waveAlgo():
     def _check_immediate_orders(self, df):
         for i in range(1, len(df) - 1):
             current_order = df.iloc[i]['orderId']
-            current_exit_time = pd.to_datetime(df.iloc[i]['exit_time'])
-            current_target = df.iloc[i]['target']
-
+            current_entry_time = pd.to_datetime(df.iloc[i]['entry_time'])
             # find the next order with the same name
-            next_row = df.iloc[i + 1:].loc[df['orderId'] == current_order].head(1)
+            prev_row = df.iloc[i - 1]
 
-            if len(next_row) > 0:
-                next_entry_time = pd.to_datetime(next_row.iloc[0]['entry_time'])
-                time_diff = (next_entry_time - current_exit_time).total_seconds() / 60
+            if prev_row.orderId == current_order:
+                prev_exit_time = pd.to_datetime(prev_row['exit_time'])
+                time_diff = (current_entry_time - prev_exit_time).total_seconds() / 60
 
                 if time_diff <= 1:
                     df.at[i, 'imm_order'] = True
-                    df.at[next_row.index[0], 'target'] = max(current_target / 2, 600)
-                    df.at[next_row.index[0], 'stoploss'] = max(current_target / 2, 600)
+                    df.at[i, 'target'] = max(prev_row.target / 2, 600)
+                    df.at[prev_row.index[0], 'stoploss'] = max(prev_row.stoploss / 2, 600)
                 else:
                     df.at[i, 'imm_order'] = False
             else:
@@ -525,10 +524,11 @@ class waveAlgo():
                 if pro_loss >= self.tradebook.loc[index, 'target']:
                     new_sl = ltp - (ltp * change_target_sl)
                     self.tradebook.loc[index, 'target'] += change_target_sl
-                    self.tradebook.loc[index, 'stoploss'] = new_sl if new_sl > self.tradebook.loc[
-                        index, 'stoploss'] else \
-                        self.tradebook.loc[index, 'stoploss']
+                    self.tradebook.loc[index, 'trail_sl'] = new_sl if new_sl > self.tradebook.loc[index, 'trail_sl'] else self.tradebook.loc[index, 'trail_sl']
                 if ltp < self.tradebook.loc[index, 'stoploss']:
+                    self._orderUpdate(index, "StopLoss", "Stop Loss Hit", ltp,
+                                      row.symbol)
+                if ltp < self.tradebook.loc[index, 'trail_sl']:
                     self._orderUpdate(index, "StopLoss", "Stop Loss Hit", ltp,
                                       row.symbol)
                 if self.tradebook.loc[index, 'qty'] > 0:
