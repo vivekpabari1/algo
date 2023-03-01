@@ -17,7 +17,7 @@ import json
 
 import logging.handlers
 import pandas
-import flas_lt import run_with_lt
+from flas_lt import run_with_lt
 
 logging.basicConfig(level=logging.INFO,
                     handlers=[logging.StreamHandler()],
