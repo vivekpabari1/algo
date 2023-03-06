@@ -278,9 +278,9 @@ class waveAlgo():
 
             _logger.info(f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
             _logger.info("============================")
-            if not buy_sell_signal['Sideways'].tail(1).isna().bool():
-                print("Avoid Sideways market")
-                return False, False
+            # if not buy_sell_signal['Sideways'].tail(1).isna().bool():
+            #     print("Avoid Sideways market")
+            #     return False, False
             t = self.tradebook.query(f"symbol == '{old_symbol}' and side == 'PE' and unsubscribe != False")
 
             if not t.empty:
@@ -366,7 +366,7 @@ class waveAlgo():
                 '09:15'):
             return
         self._update_ltp()
-        self.tradebook = self._check_immediate_orders(self.tradebook)
+        # self.tradebook = self._check_immediate_orders(self.tradebook)
         for symbol in ["BANKNIFTY"]:
             is_valid_ema, side = self._get_ema_values(symbol)
             if not is_valid_ema:
