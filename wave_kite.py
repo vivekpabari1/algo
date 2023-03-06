@@ -407,8 +407,7 @@ class waveAlgo():
                     target = min((amount * no_of_lots), 4000)
                 else:
                     target = max(self.tradebook.iloc[len(self.tradebook) - 1].target / 2, 600)
-                percentage = min((min(
-                    (amount * no_of_lots), 4000) / vals['investment']), 0.25)
+                percentage = min((target / vals['investment']), 0.25)
                 stoploss = ltp - (ltp * percentage)
                 vals['target'] = target
                 vals['stoploss'] = stoploss
