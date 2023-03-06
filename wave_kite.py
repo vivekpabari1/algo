@@ -155,7 +155,7 @@ class waveAlgo():
         self.tradebook = pd.DataFrame([],
                                       columns=[
                                           'orderId', 'symbol', 'strikePrice', 'side',
-                                          'investment', 'buy_price', 'qty','trail_sl',
+                                          'investment', 'buy_price', 'qty',
                                           'stoploss', 'target', 'exit_price', 'ltp',
                                           'profit_loss', 'remark', 'unsubscribe',
                                           'entry_time', 'exit_time',
@@ -168,7 +168,7 @@ class waveAlgo():
             os.makedirs(self.path)
         if not os.path.exists(self.tradebook_path):
             self.tradebook.loc[0] = [
-                'NFO:Profit', '', '', '', '', '', '',0, '0', '', '', '', 0, '', 'False',
+                'NFO:Profit', '', '', '', '', '', '','0', '', '', '', 0, '', 'False',
                 '23:59:59', '', self.funds, False
             ]
             self.tradebook = self.tradebook.to_csv(self.tradebook_path, index=False)
@@ -402,9 +402,11 @@ class waveAlgo():
                     'remark': "",
                     "unsubscribe": True
                 }
-                amount = 1200 if self.oi_signal and side.lower(
-                ) == self.oi_signal.lower() else 600
-                target = min((amount * no_of_lots), 4000)
+                amount = 1200 if self.oi_signal and side.lower() == self.oi_signal.lower() else 600
+                if side != self.tradebook.iloc[len(self.tradebook) - 1].side:
+                    target = min((amount * no_of_lots), 4000)
+                else:
+                    target = max(self.tradebook.iloc[len(self.tradebook) - 1].target / 2, 600)
                 percentage = min((min(
                     (amount * no_of_lots), 4000) / vals['investment']), 0.25)
                 stoploss = ltp - (ltp * percentage)
@@ -524,11 +526,8 @@ class waveAlgo():
                 if pro_loss >= self.tradebook.loc[index, 'target']:
                     new_sl = ltp - (ltp * change_target_sl)
                     self.tradebook.loc[index, 'target'] += change_target_sl
-                    self.tradebook.loc[index, 'trail_sl'] = new_sl if new_sl > self.tradebook.loc[index, 'trail_sl'] else self.tradebook.loc[index, 'trail_sl']
+                    self.tradebook.loc[index, 'stoploss'] = new_sl if new_sl > self.tradebook.loc[index, 'stoploss'] else self.tradebook.loc[index, 'stoploss']
                 if ltp < self.tradebook.loc[index, 'stoploss']:
-                    self._orderUpdate(index, "StopLoss", "Stop Loss Hit", ltp,
-                                      row.symbol)
-                if ltp < self.tradebook.loc[index, 'trail_sl']:
                     self._orderUpdate(index, "StopLoss", "Stop Loss Hit", ltp,
                                       row.symbol)
                 if self.tradebook.loc[index, 'qty'] > 0:
