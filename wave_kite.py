@@ -236,7 +236,7 @@ class waveAlgo():
             self.kite.historical_data(instrument_token,
                                       from_date=from_date,
                                       to_date=to_date,
-                                      interval="15minute"))
+                                      interval="5minute"))
         nohlc = nohlc.iloc[:, :5]
         nohlc.rename(columns={
             1: "open",
@@ -272,12 +272,19 @@ class waveAlgo():
             is_decreasing = last_wto_val.apply(lambda x: x.is_monotonic_decreasing).bool()
             ltp = self.kite.ltp(symbol).get(symbol, {}).get('last_price')
             buy_sell_signal['ltp'] = ltp
+            # ltp_increasing = buy_sell_signal['ltp'].apply(lambda x: x.is_monotonic_increasing).bool()
 
             buy_sell_signal['ready_ce'] = buy_sell_signal['trend'].tail(1).values[0] == "UP"
             buy_sell_signal['ready_pe'] = buy_sell_signal['trend'].tail(1).values[0] == "DOWN"
 
             _logger.info(f"{buy_sell_signal.tail(1).to_string()} {self.actual_profit}")
             _logger.info("============================")
+            prev_time = pd.to_datetime(buy_sell_signal['date'].iloc[-1])
+            next_time = prev_time+timedelta(minutes=5)
+            current_time = datetime.now()
+            if not (prev_time.time() < current_time.time() < next_time.time()):
+                return False, False
+
             # if not buy_sell_signal['Sideways'].tail(1).isna().bool():
             #     print("Avoid Sideways market")
             #     return False, False
@@ -331,7 +338,7 @@ class waveAlgo():
             last_exit = self.tradebook.query(
                 f"symbol   == '{symbol}' and side == '{side}' and profit_loss < 0"
             )['exit_time'].tail(1)
-            delta = timedelta(minutes=15)
+            delta = timedelta(minutes=5)
             if not last_exit.empty and not last_exit.isna().bool() and not (
                     datetime.now(tz=gettz('Asia/Kolkata')).time() >
                     (datetime.min + math.ceil(
@@ -403,7 +410,7 @@ class waveAlgo():
                     "unsubscribe": True
                 }
                 amount = 1200 if self.oi_signal and side.lower() == self.oi_signal.lower() else 600
-                if side != self.tradebook.iloc[len(self.tradebook) - 1].side:
+                if (side != self.tradebook.iloc[len(self.tradebook) - 1].side) or self.tradebook.iloc[len(self.tradebook) - 1].profit_loss < 60:
                     target = min((amount * no_of_lots), 4000)
                 else:
                     target = max(self.tradebook.iloc[len(self.tradebook) - 1].target / 2, 600)
